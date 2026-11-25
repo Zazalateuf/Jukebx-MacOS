@@ -17,6 +17,10 @@
 
 using namespace jukebox;
 
+// MusicDownloadManager is a singleton, so a plain static replaces m_fields.
+// (Geode's Fields need the typeinfo of MusicDownloadManager, which is missing on macOS.)
+static bool s_overrideSongInfo = false;
+
 std::string JBMusicDownloadManager::pathForSong(int id) {
     NongManager::get().m_currentlyPreparingNong = std::nullopt;
     std::optional<Nongs*> nongs = NongManager::get().getNongs(id);
@@ -32,15 +36,18 @@ std::string JBMusicDownloadManager::pathForSong(int id) {
 }
 
 void JBMusicDownloadManager::onGetSongInfoCompleted(std::string p1, std::string p2) {
-    m_fields->overrideSongInfo = true;
+    s_overrideSongInfo = true;
     MusicDownloadManager::onGetSongInfoCompleted(p1, p2);
     geode::Result<int> songIDRes = geode::utils::numFromString<int>(p2);
-    if (songIDRes.isErr()) { return; }
+    if (songIDRes.isErr()) {
+        s_overrideSongInfo = false;
+        return;
+    }
 
     int songID = songIDRes.unwrap();
 
     SongInfoObject* obj = this->getSongInfoObject(songID);
-    m_fields->overrideSongInfo = false;
+    s_overrideSongInfo = false;
 
     if (obj == nullptr) { return; }
 
@@ -51,7 +58,7 @@ SongInfoObject* JBMusicDownloadManager::getSongInfoObject(int id) {
     auto* og = MusicDownloadManager::getSongInfoObject(id);
     if (og == nullptr) { return og; }
 
-    if (m_fields->overrideSongInfo) { return og; }
+    if (s_overrideSongInfo) { return og; }
 
     std::optional<Nongs*> opt = NongManager::get().getNongs(id);
 
